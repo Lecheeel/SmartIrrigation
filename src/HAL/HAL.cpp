@@ -22,7 +22,7 @@ void HAL::Init()
 void HAL::Update()
 {
     //__IntervalExecute(HAL::Moisture_Test(), 100);
-    __IntervalExecute(HAL::AirSensor_Test(), 100);
+    //__IntervalExecute(HAL::AirSensor_Test(), 100);
     Relay_Update();
     Handle_Serial();
 }
