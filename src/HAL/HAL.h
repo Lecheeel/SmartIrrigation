@@ -37,6 +37,7 @@ namespace HAL
     void AirSensor_Init();
     float AirSensor_GetTemperature();
     float AirSensor_GetHumidity();
+    void AirSensor_Test();
 
 /* Network */
     void Network_Init(String ssid, String password);
