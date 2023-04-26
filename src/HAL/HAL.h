@@ -24,14 +24,19 @@ namespace HAL
     void Relay_Update();
     bool Relay_GetState();
 
-/* Humidity Sensor */
-    void   HUM_Init();
-    float  HUM_GetValue();
-    void   HUM_Test();
+/* Soil Moisture Sensor */
+    void   Moisture_Init();
+    float  Moisture_GetValue();
+    void   Moisture_Test();
 
 /* Illumination Sensor */
     void ILL_Init();
     float ILL_GetValue();
+
+/* Air temperature and humidity sensor */
+    void AirSensor_Init();
+    float AirSensor_GetTemperature();
+    float AirSensor_GetHumidity();
 
 /* Network */
     void Network_Init(String ssid, String password);

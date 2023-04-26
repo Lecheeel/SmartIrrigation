@@ -611,7 +611,7 @@ void get_data(AsyncWebServerRequest *request)
 {
     if (request->hasParam("hum"))
     {
-        request->send_P(200, "text/plain", String("{\"data\":[" + (String)HAL::HUM_GetValue() + "]}").c_str());
+        request->send_P(200, "text/plain", String("{\"data\":[" + (String)HAL::Moisture_GetValue() + "]}").c_str());
         return;
     }
     else if (request->hasParam("ill"))

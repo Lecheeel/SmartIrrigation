@@ -12,7 +12,8 @@ void HAL::Init()
     HAL::Relay_Init();
     HAL::Network_Init("", "");
     HAL::Network_PrintWiFiInfo();
-    HAL::HUM_Init();
+    HAL::Moisture_Init();
+    HAL::AirSensor_Init();
     HAL::I2C_Init(true);
     HAL::ILL_Init();
     HAL::WebServer_Init();
@@ -20,7 +21,7 @@ void HAL::Init()
 
 void HAL::Update()
 {
-    //__IntervalExecute(HAL::HUM_Test(), 100);
+    //__IntervalExecute(HAL::Moisture_Test(), 100);
     Relay_Update();
     Handle_Serial();
 }

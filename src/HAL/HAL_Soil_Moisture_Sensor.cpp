@@ -23,7 +23,7 @@ struct HAL_Humidity_Sensor
     int time_hum_day_ave;
     ulong time_lasttime_day_ave;
 }*hum;*/
-void HAL::HUM_Init(){
+void HAL::Moisture_Init(){
     pinMode(CONFIG_HUM_PIN,INPUT);
 }
 
@@ -36,12 +36,12 @@ double calculateHumidity(int reading) {
   }
   return 100.00-humidity;
 }
-float HAL::HUM_GetValue(){
+float HAL::Moisture_GetValue(){
     //return (float)float((3000.00-(float)analogRead(CONFIG_HUM_PIN))/20);//1v-3v
     return calculateHumidity(analogRead(CONFIG_HUM_PIN));
 }
 
-void HAL::HUM_Test(){
+void HAL::Moisture_Test(){
      //Serial.println("ttttttttttttttttt");
      //Serial.println((analogRead(CONFIG_HUM_PIN) - 4095) * (100 - 0) / (700 - 4095) + 0);
      Serial.println(calculateHumidity(analogRead(CONFIG_HUM_PIN)));

@@ -26,9 +26,13 @@
 /* Illumination sensor */
 #define BH1750_ADDR                 0x23
 
-/* Humidity sensor */
+/* Soil Moisture Sensor */
 //ADC2 is in use by WiFi
 #define CONFIG_HUM_PIN              36
+
+/* Air temperature and humidity sensor */
+#define DHTPIN 14     //DHT11连接到Arduino的引脚
+#define DHTTYPE DHT11   //传感器类型
 
 /* WiFi  */
 struct WiFiConfig {
