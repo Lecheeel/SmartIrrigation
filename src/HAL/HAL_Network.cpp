@@ -2,6 +2,12 @@
 #include <WiFi.h>
 #include <EEPROM.h>
 #include <HTTPClient.h>
+#include <WiFiUdp.h>
+
+WiFiUDP Udp;
+const int NTP_PACKET_SIZE = 48;
+byte packetBuffer[NTP_PACKET_SIZE];
+const char *ntpServerName = "ntp.ntsc.ac.cn";
 
 void HAL::Network_Init(String ssid, String password)
 {
@@ -21,19 +27,18 @@ void HAL::Network_Init(String ssid, String password)
 	{
 		strncpy(config.ssid, ssid.c_str(), sizeof(config.ssid));
 		strncpy(config.password, password.c_str(), sizeof(config.password));
-		WiFi.begin(config.ssid, config.password);
-		IPAddress subnet(255, 255, 255, 0);
-		IPAddress local_ip(192, 168, 1, 77);
-		IPAddress getway(192, 168, 1, 1);
-		if (!WiFi.config(local_ip, getway, subnet))
-		{
-			Serial.println("STA Failed to configure");
-		}
-
-		// if (WiFi.waitForConnectResult() != WL_CONNECTED) {
-		// 	Serial.println("WiFi Failed to connect");
-		// 	return;
-		//}
+		WiFi.begin(config.ssid, config.password); /*
+		 IPAddress subnet(255, 255, 255, 0);
+		 IPAddress local_ip(192, 168, 1, 77);
+		 IPAddress getway(192, 168, 1, 1);
+		 if (!WiFi.config(local_ip, getway, subnet))
+		 {
+			 Serial.println("STA Failed to configure");
+		 }*/
+												  // if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+												  // 	Serial.println("WiFi Failed to connect");
+												  // 	return;
+												  //}
 	}
 	else
 	{
@@ -59,9 +64,15 @@ void HAL::Network_Init(String ssid, String password)
 	Serial.println("WiFi connected");
 	Serial.println("IP address: ");
 	Serial.println(WiFi.localIP());
+
 	config.ip = WiFi.localIP();
 	config.gateway = WiFi.gatewayIP();
 	Network_Save_Config(config);
+
+	// 设置静态 DNS
+	// IPAddress dns(223, 5, 5, 5);
+	//  WiFi.config(config.ip, config.gateway, dns);
+	// WiFi.config(IPAddress(0, 0, 0, 0), IPAddress(0, 0, 0, 0), dns);
 }
 
 void HAL::Network_Save_Config(WiFiConfig &wifiConfig)
@@ -135,4 +146,141 @@ void HAL::Network_PrintWiFiInfo()
 	Serial.print("Gateway: ");
 	Serial.println(WiFi.gatewayIP());
 	Serial.println("-------------------------");
+}
+
+void HAL::Network_printWiFiError()
+{
+	switch (WiFi.status())
+	{
+	case WL_NO_SHIELD:
+		Serial.println("WiFi模块未找到");
+		break;
+	case WL_IDLE_STATUS:
+		Serial.println("空闲状态");
+		break;
+	case WL_NO_SSID_AVAIL:
+		Serial.println("未找到指定的WiFi网络");
+		break;
+	case WL_SCAN_COMPLETED:
+		Serial.println("WiFi扫描已完成");
+		break;
+	case WL_CONNECTED:
+		// 连接成功，不是错误情况
+		break;
+	case WL_CONNECT_FAILED:
+		Serial.println("连接失败");
+		break;
+	case WL_CONNECTION_LOST:
+		Serial.println("连接丢失");
+		break;
+	case WL_DISCONNECTED:
+		Serial.println("已断开连接");
+		break;
+	default:
+		Serial.println("未知错误");
+		break;
+	}
+}
+
+// 向给定地址的时间服务器发送NTP请求
+void sendNTPpacket(IPAddress &address)
+{
+	// 将缓冲区中的所有字节设置为0
+	memset(packetBuffer, 0, NTP_PACKET_SIZE);
+	// 初始化NTP请求数据包的值
+	packetBuffer[0] = 0b11100011; // LI, Version, Mode
+	packetBuffer[1] = 0;		  // Stratum, or type of clock
+	packetBuffer[2] = 6;		  // Polling Interval
+	packetBuffer[3] = 0xEC;		  // Peer Clock Precision
+	// 8字节的零值用于Root Delay和Root Dispersion
+	packetBuffer[12] = 49;
+	packetBuffer[13] = 0x4E;
+	packetBuffer[14] = 49;
+	packetBuffer[15] = 52;
+	// 所有NTP字段已经设置好值，现在可以发送请求时间戳的数据包
+	Udp.beginPacket(address, 123); // NTP请求使用端口123
+	Udp.write(packetBuffer, NTP_PACKET_SIZE);
+	Udp.endPacket();
+}
+
+// 获取NTP时间
+time_t getNtpTime()
+{
+	IPAddress ntpServerIP; // NTP服务器的IP地址
+
+	while (Udp.parsePacket() > 0)
+		; // 丢弃之前接收到的任何数据包
+	// 发送NTP请求
+	Serial.println("发送NTP请求");
+	// 从池中获取一个随机服务器
+	WiFi.hostByName(ntpServerName, ntpServerIP);
+	Serial.print(ntpServerName);
+	Serial.print(": ");
+	Serial.println(ntpServerIP);
+	sendNTPpacket(ntpServerIP); // 发送NTP数据包
+	uint32_t beginWait = millis();
+	while (millis() - beginWait < 1500)
+	{
+		int size = Udp.parsePacket();
+		if (size >= NTP_PACKET_SIZE)
+		{
+			// 接收NTP响应
+			Serial.println("接收NTP响应");
+			Udp.read(packetBuffer, NTP_PACKET_SIZE); // 读取数据包到缓冲区
+			unsigned long secsSince1900;
+			// 将从位置40开始的四个字节转换为长整型
+			secsSince1900 = (unsigned long)packetBuffer[40] << 24;
+			secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
+			secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
+			secsSince1900 |= (unsigned long)packetBuffer[43];
+			return secsSince1900 - 2208988800UL + TIMEZONE * TIME_SECS_PER_HOUR; // 返回时间
+		}
+	}
+	// 没有收到NTP响应
+	Serial.println("没有收到NTP响应 :-(");
+	return 0; // 如果无法获取时间，则返回0
+}
+
+// 同步NTP时间
+void syncNtpTime()
+{
+	setSyncProvider(getNtpTime);
+	setSyncInterval(300);
+}
+
+void HAL::Network_startNtp()
+{
+	Serial.println();
+	Serial.println("----同步NTP时间----");
+	Serial.println("启动UDP");
+	Udp.begin(NTP_SEND_LOCALPORT);
+	Serial.print("本地端口: ");
+	Serial.println(Udp.remotePort());
+	Serial.println("等待同步");
+	syncNtpTime();
+}
+
+void printDigits(int digits)
+{
+	// utility for digital clock display: prints preceding colon and leading 0
+	Serial.print(":");
+	if (digits < 10)
+		Serial.print('0');
+	Serial.print(digits);
+}
+
+void HAL::NTP_digitalClockDisplay()
+{
+	// digital clock display of the time
+	Serial.print("Time: ");
+	Serial.print(hour());
+	printDigits(minute());
+	printDigits(second());
+	Serial.print(" ");
+	Serial.print(day());
+	Serial.print(".");
+	Serial.print(month());
+	Serial.print(".");
+	Serial.print(year());
+	Serial.println();
 }

@@ -3,8 +3,8 @@
 
 /* Firmware Version */
 #define VERSION_FIRMWARE_NAME   "[SmartStation]"
-#define VERSION_SOFTWARE        "v1.0"
-#define VERSION_HARDWARE        "v1.1"
+#define VERSION_SOFTWARE        "v3.0"
+#define VERSION_HARDWARE        "v2.1"
 #define VERSION_AUTHOR_NAME     "Zhijun_Yang"
 
 /* Number to string macro */

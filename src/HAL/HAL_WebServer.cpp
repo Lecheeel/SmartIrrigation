@@ -1,7 +1,7 @@
 #include "HAL/HAL.h"
 #include "ESPAsyncWebServer.h" // 包含异步Web服务器库文件
 #include "ArduinoJson.h"
-#include<EEPROM.h>
+#include <EEPROM.h>
 
 AsyncWebServer server(80); // 创建WebServer对象, 端口号80
 // 使用端口号80可以直接输入IP访问，使用其它端口需要输入IP:端口号访问
@@ -87,6 +87,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 		<button class="button" onclick="window.location.href='/index_ill'" type="button">光照数据</button>
 		<button class="button" onclick="window.location.href='/control'" type="button">控制</button>
 		<button class="button" onclick="window.location.href='/index_wifi_config'" type="button">WiFi配置</button>
+    <button class="button" onclick="window.location.href='/view_weather'" type="button">当前地区气象</button>
 		<canvas id="myChart" width="400" height="100"></canvas>
 		<div class="legend">
 			<div class="legend-item">
@@ -291,7 +292,7 @@ const char index_wifi_config[] PROGMEM = R"rawliteral(
   <h1>ESP32 WiFi Setup</h1>
   <button onclick="window.location.href='/get_wifi_config'" type="button" >查看WiFi配置</button>
   <button onclick="goBack()">返回</button>
-
+<p>请获取网关再进行设置！</p>
 <script>
 function goBack() {
   window.history.back();
@@ -394,38 +395,42 @@ function goBack() {
 	</body>
 </html>
 )rawliteral";
-void handleGetConfig(AsyncWebServerRequest *request) {
-	// 读取EEPROM中的WiFi配置
-	WiFiConfig config;
-	EEPROM.begin(sizeof(config));
-	EEPROM.get(0, config);
-	EEPROM.end();
+void handleGetConfig(AsyncWebServerRequest *request)
+{
+  // 读取EEPROM中的WiFi配置
+  WiFiConfig config;
+  EEPROM.begin(sizeof(config));
+  EEPROM.get(0, config);
+  EEPROM.end();
 
-	// 构造HTML响应
-	String html = "<html><head><title>ESP32 WiFi Setup</title></head><body>";
-	html += "<h1>Current WiFi Configuration</h1>";
-	html += "<button onclick=\"goBack()\">Go back</button>";
+  // 构造HTML响应
+  String html = "<html><head><title>ESP32 WiFi Setup</title></head><body>";
+  html += "<h1>Current WiFi Configuration</h1>";
+  html += "<button onclick=\"goBack()\">Go back</button>";
 
-	html += "<script>";
-	html += "function goBack() {";
-	html += " window.history.back();";
-	html += "}";
-	html += "</script>";
-	html += "<p>SSID: " + String(config.ssid) + "</p>";
-	html += "<p>Password: " + String(config.password) + "</p>";
-	html += "<p>Mode: ";
-	if (config.mode == 0) {
-	html += "Hotspot";
-	} else {
-	html += "Station";
-	}
-	html += "</p>";
-	html += "<p>IP: " + config.ip.toString() + "</p>";
-	html += "<p>Gateway: " + config.gateway.toString() + "</p>";
-	html += "</body></html>";
+  html += "<script>";
+  html += "function goBack() {";
+  html += " window.history.back();";
+  html += "}";
+  html += "</script>";
+  html += "<p>SSID: " + String(config.ssid) + "</p>";
+  html += "<p>Password: " + String(config.password) + "</p>";
+  html += "<p>Mode: ";
+  if (config.mode == 0)
+  {
+    html += "Hotspot";
+  }
+  else
+  {
+    html += "Station";
+  }
+  html += "</p>";
+  html += "<p>IP: " + config.ip.toString() + "</p>";
+  html += "<p>Gateway: " + config.gateway.toString() + "</p>";
+  html += "</body></html>";
 
-	// 返回HTML响应
-	request->send(200, "text/html", html);
+  // 返回HTML响应
+  request->send(200, "text/html", html);
 }
 const char control_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML>
@@ -547,7 +552,171 @@ function goBack() {
 </body>
 </html>
 )rawliteral";
-void handleConnect(AsyncWebServerRequest *request) {
+
+String html_weather()
+{
+    String htmlPage = "<!DOCTYPE html>\
+                    <html>\
+                    <head>\
+                    <meta charset=\"UTF-8\">\
+                        <title>天气数据</title>\
+                        <style>\
+                            body {\
+                                font-family: Arial, sans-serif;\
+                                margin: 20px;\
+                                background-color: #f1f1f1;\
+                            }\
+                            h1 {\
+                                text-align: center;\
+                                color: #333;\
+                            }\
+                            h2 {\
+                                margin-top: 30px;\
+                                color: #555;\
+                            }\
+                            table {\
+                                width: 100%;\
+                                border-collapse: collapse;\
+                                margin-top: 20px;\
+                            }\
+                            th, td {\
+                                padding: 12px;\
+                                text-align: left;\
+                                border-bottom: 1px solid #ddd;\
+                            }\
+                            th {\
+                                background-color: #f5f5f5;\
+                                color: #333;\
+                            }\
+                        </style>\
+                        <script>\
+                            function goBack() {\
+                                window.history.back();\
+                            }\
+                        </script>\
+                    </head>\
+                    <body>\
+                        <h1>天气数据</h1>\
+                        <button onclick=\"goBack()\">返回</button>\
+                        <h2>当前天气</h2>\
+                        <table>\
+                            <tr>\
+                                <th>城市名称</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getName() + "</td>\
+                            </tr>\
+                            <tr>\
+                                <th>城市ID</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getID() + "</td>\
+                            </tr>\
+                            <tr>\
+                                <th>PM2.5浓度</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getPM2p5() + " μg/m³</td>\
+                            </tr>\
+                            <tr>\
+                                <th>空气质量级别</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getCategory() + "</td>\
+                            </tr>\
+                            <tr>\
+                                <th>天气描述</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getText() + "</td>\
+                            </tr>\
+                            <tr>\
+                                <th>风向</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getWindDir() + "</td>\
+                            </tr>\
+                            <tr>\
+                                <th>风力等级</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getWindScale() + "</td>\
+                            </tr>\
+                            <tr>\
+                                <th>风速</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getWindSpeed() + " m/s</td>\
+                            </tr>\
+                            <tr>\
+                                <th>相对湿度</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getHumidity() + "%</td>\
+                            </tr>\
+                            <tr>\
+                                <th>能见度</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getVisibility() + " km</td>\
+                            </tr>\
+                            <tr>\
+                                <th>降水量</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getPrecipitation() + " mm</td>\
+                            </tr>\
+                            <tr>\
+                                <th>当前地区温度</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getTemperature() + " °C</td>\
+                            </tr>\
+                            <tr>\
+                                <th>云量</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getCloud() + "%</td>\
+                            </tr>\
+                            <tr>\
+                                <th>气压</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getPressure() + " hPa</td>\
+                            </tr>\
+                            <tr>\
+                                <th>天气图标</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getIcon() + "</td>\
+                            </tr>\
+                        </table>\
+                        <h2>天文数据</h2>\
+                        <table>\
+                            <tr>\
+                                <th>月光亮度</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getIllumination() + "%</td>\
+                            </tr>\
+                            <tr>\
+                                <th>月相</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getMoonName() + "</td>\
+                            </tr>\
+                            <tr>\
+                                <th>月升时间</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getMoonrise() + "</td>\
+                            </tr>\
+                            <tr>\
+                                <th>月落时间</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getMoonset() + "</td>\
+                            </tr>\
+                            <tr>\
+                                <th>日出时间</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getSunrise() + "</td>\
+                            </tr>\
+                            <tr>\
+                                <th>日落时间</th>\
+                                <td>" +
+                        HAL::WeatherAPI_getSunset() + "</td>\
+                            </tr>\
+                        </table>\
+                    </body>\
+                    </html>";
+
+    return htmlPage;
+}
+
+void handleConnect(AsyncWebServerRequest *request)
+{
 
   // 获取表单中的WiFi账号密码和连接模式等信息
   String ssid = request->arg("ssid");
@@ -556,34 +725,34 @@ void handleConnect(AsyncWebServerRequest *request) {
   String ipStr = request->arg("ip");
   String gatewayStr = request->arg("gateway");
 
-  	Serial.println(ssid);
-	Serial.println(password);
+  Serial.println(ssid);
+  Serial.println(password);
 
-	WiFiConfig config;
-	strncpy(config.ssid, ssid.c_str(), sizeof(config.ssid));
-	strncpy(config.password, password.c_str(), sizeof(config.password));
-	config.mode = mode;
-	config.ip.fromString(ipStr);
-	config.gateway.fromString(gatewayStr);
-	EEPROM.begin(sizeof(config));
-	EEPROM.put(0, config);
-	EEPROM.commit();
-	EEPROM.end();
-	/*
-	WiFi.disconnect();
+  WiFiConfig config;
+  strncpy(config.ssid, ssid.c_str(), sizeof(config.ssid));
+  strncpy(config.password, password.c_str(), sizeof(config.password));
+  config.mode = mode;
+  config.ip.fromString(ipStr);
+  config.gateway.fromString(gatewayStr);
+  EEPROM.begin(sizeof(config));
+  EEPROM.put(0, config);
+  EEPROM.commit();
+  EEPROM.end();
+  /*
+  WiFi.disconnect();
   // 连接WiFi网络或创建热点
   if (mode == 0) {
     // 创建热点
     WiFi.softAP(ssid.c_str(), password.c_str());
   } else {
     // 连接WiFi网络
-	
+
     WiFi.begin(ssid.c_str(), password.c_str());
     while (WiFi.status() != WL_CONNECTED) {
       delay(1000);
     }
     // 设置IP和Gateway等网络参数
-	IPAddress subnet(255,255,255,0);
+  IPAddress subnet(255,255,255,0);
      WiFi.config(config.ip, config.gateway,subnet);
   }*/
 
@@ -609,105 +778,106 @@ String Merge_Data(void)
 }*/
 void get_data(AsyncWebServerRequest *request)
 {
-    if (request->hasParam("hum"))
-    {
-        request->send_P(200, "text/plain", String("{\"data\":[" + (String)HAL::Moisture_GetValue() + "]}").c_str());
-        return;
-    }
-    else if (request->hasParam("ill"))
-    { // illumination
-        request->send_P(200, "text/plain", String("{\"data\":[" + (String)HAL::ILL_GetValue() + "]}").c_str());
-        return;
-        // 发送接收成功标志符
-    }
+  if (request->hasParam("hum"))
+  {
+    request->send_P(200, "text/plain", String("{\"data\":[" + (String)HAL::Moisture_GetValue() + "]}").c_str());
+    return;
+  }
+  else if (request->hasParam("ill"))
+  { // illumination
+    request->send_P(200, "text/plain", String("{\"data\":[" + (String)HAL::ILL_GetValue() + "]}").c_str());
+    return;
+    // 发送接收成功标志符
+  }
 
-    // StaticJsonDocument<200> doc; //声明一个JsonDocument对象
-    //  DynamicJsonDocument doc(200); //声明一个JsonDocument对象
-    // DynamicJsonDocument doc(128);
-    // doc["data"][0]=(HAL::HUM_GetValue());
-    // if(doc["data"].size()>16)doc["data"].clear();
-    // Serial.println("ppppppppppppppppppppppppppppp");
-    // Serial.println(doc.as<String>());
-    // return doc.as<String>().c_str();
-    // serializeJson(doc, Serial);
-    //  This prints:
-    //  {"sensor":"gps","time":1351824120,"data":[48.756080,2.302038]}
-    // return doc.as<String>();
+  // StaticJsonDocument<200> doc; //声明一个JsonDocument对象
+  //  DynamicJsonDocument doc(200); //声明一个JsonDocument对象
+  // DynamicJsonDocument doc(128);
+  // doc["data"][0]=(HAL::HUM_GetValue());
+  // if(doc["data"].size()>16)doc["data"].clear();
+  // Serial.println("ppppppppppppppppppppppppppppp");
+  // Serial.println(doc.as<String>());
+  // return doc.as<String>().c_str();
+  // serializeJson(doc, Serial);
+  //  This prints:
+  //  {"sensor":"gps","time":1351824120,"data":[48.756080,2.302038]}
+  // return doc.as<String>();
 }
 void esp_control(AsyncWebServerRequest *request)
 {
-    if (request->hasParam("10ml"))
-    {
-        HAL::Relay_Open_ML(10);
-    }
-    else if (request->hasParam("20ml"))
-    {
-        HAL::Relay_Open_ML(20);
-    }
-    else if (request->hasParam("30ml"))
-    {
-        HAL::Relay_Open_ML(30);
-    }
-    else if (request->hasParam("50ml"))
-    {
-        HAL::Relay_Open_ML(50);
-    }
-    else if (request->hasParam("relay_open"))
-    {
-        HAL::Relay_Open_ML(102400);
-    }
-    else if (request->hasParam("relay_close"))
-    {
-        HAL::Relay_Close();
-    }
-    else
-    {
-        request->send(401);
-        return;
-    }
-    request->send(200);
+  if (request->hasParam("10ml"))
+  {
+    HAL::Relay_Open_ML(10);
+  }
+  else if (request->hasParam("20ml"))
+  {
+    HAL::Relay_Open_ML(20);
+  }
+  else if (request->hasParam("30ml"))
+  {
+    HAL::Relay_Open_ML(30);
+  }
+  else if (request->hasParam("50ml"))
+  {
+    HAL::Relay_Open_ML(50);
+  }
+  else if (request->hasParam("relay_open"))
+  {
+    HAL::Relay_Open_ML(102400);
+  }
+  else if (request->hasParam("relay_close"))
+  {
+    HAL::Relay_Close();
+  }
+  else
+  {
+    request->send(401);
+    return;
+  }
+  request->send(200);
 }
 // 下发处理回调函数
 void Config_Callback(AsyncWebServerRequest *request)
 {
-    if (request->hasParam("value")) // 如果有值下发
-    {
-        String HTTP_Payload = request->getParam("value")->value();    // 获取下发的数据
-        Serial.printf("[%lu]%s\r\n", millis(), HTTP_Payload.c_str()); // 打印调试信息
-    }
-    request->send(200, "text/plain", "OK"); // 发送接收成功标志符
+  if (request->hasParam("value")) // 如果有值下发
+  {
+    String HTTP_Payload = request->getParam("value")->value();    // 获取下发的数据
+    Serial.printf("[%lu]%s\r\n", millis(), HTTP_Payload.c_str()); // 打印调试信息
+  }
+  request->send(200, "text/plain", "OK"); // 发送接收成功标志符
 }
 void HAL::WebServer_Init()
 {
-    // get_data();
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send_P(200, "text/html", index_html); });
-    // 设置反馈的信息，在HTML请求这个Ip/dht这个链接时，返回打包好的传感器数据
-    server.on("/index_ill", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send_P(200, "text/html", index_html_ill); });
-	server.on("/index_wifi_config", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send_P(200, "text/html", index_wifi_config); });
+  // get_data();
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send_P(200, "text/html", index_html); });
+  // 设置反馈的信息，在HTML请求这个Ip/dht这个链接时，返回打包好的传感器数据
+  server.on("/index_ill", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send_P(200, "text/html", index_html_ill); });
+  server.on("/index_wifi_config", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send_P(200, "text/html", index_wifi_config); });
 
-	server.on("/get_wifi_config", HTTP_GET, handleGetConfig);
+  server.on("/get_wifi_config", HTTP_GET, handleGetConfig);
+
+  server.on("/connect", HTTP_POST, handleConnect);
+  server.on("/get_data", HTTP_GET, get_data);
+
+  server.on("/control", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send_P(200, "text/html", control_html); });
+  server.on("/esp_control", HTTP_GET, esp_control);
+  server.on("/view_weather", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send_P(200, "text/html", html_weather().c_str()); });
+
+  /*
+      server.on("/get_data", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send_P(200, "text/plain", get_data().c_str()); });
 
 
-	server.on("/connect", HTTP_POST, handleConnect);
-    server.on("/get_data", HTTP_GET, get_data);
+      server.on("/dht", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send_P(200, "text/plain", Merge_Data().c_str()); });
+      server.on("/set", HTTP_GET, Config_Callback); // 绑定配置下发的处理函数
+      */
 
-    server.on("/control", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send_P(200, "text/html", control_html); });
-    server.on("/esp_control", HTTP_GET, esp_control);
-
-    /*
-        server.on("/get_data", HTTP_GET, [](AsyncWebServerRequest *request)
-                  { request->send_P(200, "text/plain", get_data().c_str()); });
-
-
-        server.on("/dht", HTTP_GET, [](AsyncWebServerRequest *request)
-                  { request->send_P(200, "text/plain", Merge_Data().c_str()); });
-        server.on("/set", HTTP_GET, Config_Callback); // 绑定配置下发的处理函数
-        */
-
-    server.begin(); // 初始化HTTP服务器
-	Serial.println("Server OK");
+  server.begin(); // 初始化HTTP服务器
+  Serial.println("Server OK");
 }
